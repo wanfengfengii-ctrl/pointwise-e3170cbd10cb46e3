@@ -1,0 +1,24 @@
+{
+  "handoff": {
+    "submission_id": "SQ-20261117-am",
+    "station": "松桥",
+    "document": "SQ-20261117-A",
+    "readings": [
+      {"position": 0, "litres": 7, "line": 41},
+      {"position": 1, "litres": 11, "line": 42},
+      {"position": 2, "litres": 13, "line": 43}
+    ]
+  },
+  "coverage": {
+    "submission_id": "SQ-20261118-am",
+    "station": "松桥",
+    "document": "SQ-20261118-A",
+    "readings": [
+      {"position": 0, "litres": 7, "line": 91},
+      {"position": 1, "litres": null, "line": 92},
+      {"position": 2, "litres": 7, "line": 93},
+      {"position": 3, "litres": 0, "line": 94},
+      {"position": 4, "litres": 11, "line": 95}
+    ]
+  }
+}
