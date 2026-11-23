@@ -1,5 +1,6 @@
 from collections.abc import Callable
 
+from claims.transfer import get_batch_transfer
 from delivery.receipts import PageReceipt, build_receipt, recover_publication
 from delivery.rows import materialize_rows
 from delivery.store import DeliveryStore
@@ -28,6 +29,8 @@ def publish(
             if found:
                 return prior
 
+            if get_batch_transfer(catalogue, page.batch_id) is not None:
+                raise ValueError('batch eligibility was transferred to an offline handoff')
             claim = claims.get_claim(page.request.claim_id, db=catalogue)
             if claim is None or claim.batch_id != page.batch_id:
                 raise ValueError('candidate has no matching claim for this batch')

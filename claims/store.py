@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from batches.store import BatchStore
 from claims.ranges import ClaimRange
+from claims.transfer import TRANSFER_DDL
 
 if TYPE_CHECKING:
     from claims.receipt import SplitRequest
@@ -50,6 +51,7 @@ class ClaimStore:
                 );
                 COMMIT;
             ''')
+            db.execute(TRANSFER_DDL)
 
     @staticmethod
     def _read_claim(row: tuple) -> Claim:

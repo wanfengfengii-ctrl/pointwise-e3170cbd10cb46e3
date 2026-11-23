@@ -4,6 +4,7 @@ from dataclasses import replace
 from claims.ranges import partition_range
 from claims.receipt import SplitReceipt, SplitRequest, recover_split
 from claims.store import Claim, ClaimStore
+from claims.transfer import get_batch_transfer
 from delivery.store import DeliveryStore
 
 
@@ -27,6 +28,8 @@ def split(
         parent = claims.get_claim(request.claim_id, db=catalogue)
         if parent is None:
             raise LookupError(f'unknown claim {request.claim_id!r}')
+        if get_batch_transfer(catalogue, parent.batch_id) is not None:
+            raise ValueError('batch eligibility was transferred to an offline handoff')
         if parent.parent_id is not None or claims.has_split(parent.claim_id, db=catalogue):
             raise ValueError('only the original claim may be split once')
         if request.successor_group == parent.group_id:

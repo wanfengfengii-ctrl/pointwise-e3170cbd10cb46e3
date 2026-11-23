@@ -12,9 +12,12 @@ from claims.assign import assign
 from claims.receipt import SplitRequest
 from claims.split import split
 from claims.store import ClaimStore
+from delivery.handoff import handoff, publish_offline
+from delivery.history import read_batch_delivery
 from delivery.publish import publish
 from delivery.receipts import get_page
 from delivery.store import DeliveryStore
+from offline_fixture import create_workday, detach_catalogue, seed
 from pages.build import prepare
 from pages.request import PageRequest
 from pages.store import CandidateStore
@@ -112,6 +115,55 @@ def _coverage(sample, batches, claims, candidates, deliveries):
     )
 
 
+def _offline(root):
+    work = create_workday(root)
+    fixture = seed(work)
+    batch_id = fixture.batch_id
+    receipt = handoff(work.candidates, work.deliveries, 'night-shift', batch_id, ['wide', 'tail'])
+    if receipt.request_ids != ('tail', 'wide'):
+        raise AssertionError(f'unexpected handoff list: {receipt!r}')
+    ledger = detach_catalogue(work)
+    replay = handoff(work.candidates, ledger, 'night-shift', batch_id, ['tail', 'wide'])
+    if replay != receipt:
+        raise AssertionError('the detached catalogue must not be needed to re-claim the handoff')
+    night = publish_offline(ledger, receipt.handoff_id, 'tail')
+    closed = publish_offline(ledger, receipt.handoff_id, 'wide')
+    first = get_page(ledger, fixture.first_receipt.receipt_id)
+    delivered = read_batch_delivery(ledger, batch_id)
+    expected = {
+        'night': [[1, None, 'night', 102], [2, 11, 'night', 103]],
+        'wide': None,
+        'first': [[0, 7, 'day', 101]],
+    }
+    actual = {
+        'night': _detail(night.rows),
+        'wide': None if closed is None else _detail(closed.rows),
+        'first': _detail(first.rows),
+    }
+    downstream_expected = {
+        'rows': [[0, 7, 'day', 101], [1, None, 'night', 102], [2, 11, 'night', 103]],
+        'total': {'delivered_count': 3, 'missing_count': 1, 'litres': 18},
+    }
+    litres = [row.litres for row in delivered if row.litres is not None]
+    downstream_actual = {
+        'rows': _detail(delivered),
+        'total': {
+            'delivered_count': len(delivered),
+            'missing_count': len(delivered) - len(litres),
+            'litres': sum(litres),
+        },
+    }
+    _emit(
+        'offline-handoff',
+        {'submission_id': 'offline-day', 'readings': [7, None, 11], 'handoff_list': ['wide', 'tail'],
+         'catalogue': 'detached before signing'},
+        expected, actual,
+        downstream_expected, downstream_actual,
+        ['delivery/handoff.py', 'delivery/store.py', 'offline_fixture.py', 'delivery/receipts.py'],
+        '截点时夜班工单持有原位 1、2（缺测、11 L），旧整页无可交行销记为空，首执 7 L 照领，全批 7 + 11 = 18 L、缺测一条。',
+    )
+
+
 def main():
     path = Path(__file__).resolve().parent / 'samples' / 'day_batches.json'
     samples = json.loads(path.read_text(encoding='utf-8'))
@@ -125,6 +177,8 @@ def main():
             store.initialize()
         _handoff(samples['handoff'], batches, claims, candidates, deliveries)
         _coverage(samples['coverage'], batches, claims, candidates, deliveries)
+    with TemporaryDirectory(prefix='qinglan-offline-demo-') as directory:
+        _offline(Path(directory))
 
 
 if __name__ == '__main__':
